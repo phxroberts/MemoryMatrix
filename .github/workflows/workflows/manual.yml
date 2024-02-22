@@ -1,0 +1,137 @@
+# This is a basic workflow that is manually triggered
+
+name: Deploy
+
+# Controls when the action will run. Workflow runs when manually triggered using the UI
+# or API.
+on:
+  workflow_dispatch:
+    # Inputs the workflow accepts.
+    inputs:
+      name:
+        description: 'Build Name'
+        # Default value if no value is explicitly provided
+        default: 'Memory Matrix'     
+      job-type:
+        type: choice
+        description: Job Type
+        options:
+        - "Build Archive"        
+        - "Build IPA"        
+        - "Deployment"
+      deploy-via-azure:
+        type: boolean
+        description: Deploy Via Azure
+      attach-ipa:
+        type: boolean
+        description: Attach IPA to Run
+      run-workflow-size-check:
+        type: boolean
+        description: Run Workflow Size Checks
+      runner:
+        type: choice
+        description: Job Type
+        options:
+        - "14"        
+        - "15"           
+env:
+    scheme: 'MemoryMatrix'
+    ipaName: MemoryMatrix.ipa
+    appCenterToken: xxxxx2d2090d16faddb2421e47676b2016566225
+    appCenterAppID: 'xxxxxxxx-70d1-d4b8-cd92-53e578e87523'
+    appVersion: 2.2.5
+    ascKeyId: ${{secrets.APP_STORE_CONNECT_API_KEY}}
+    ascIssuerId: ${{secrets.APP_STORE_CONNECT_API_ISSUER_ID}}    
+    APP_SIZE_RESTRICTIONS: ${{vars.APP_SIZE_RESTRICTIONS}}
+jobs:
+  start-runner:
+   runs-on: ubuntu-latest
+   steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Start Azure Runner
+        if: ${{ inputs.deploy-via-azure }}
+        run: |          
+          echo "Starting Runner..."  
+          ./scripts/start-runner.sh -b "${newBuildNumber}" -v "$appVersion"
+     
+  build:
+    # The type of runner that the job will run on
+    runs-on: ["self-hosted", "x${{inputs.runner}}"]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Calculate New Build Number
+        run: |
+            newBuildNumber=$(echo $((${{env.buildNumberBase}}+${{github.run_number}})))
+            echo "New Build Number: $newBuildNumber"
+            echo "newBuildNumber=$newBuildNumber" >> $GITHUB_ENV    
+      # - name: Start Azure Runner
+      #   if: ${{ inputs.deploy-via-azure }}
+      #   run: |          
+      #     echo "Running..."  
+          # ./scripts/start-runner.sh -b "${newBuildNumber}" -v "$appVersion"
+      - name: Download artifact
+        if: ${{ false }}
+        id: download-artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+        # Optional, GitHub token, a Personal Access Token with `public_repo` scope if needed
+        # Required, if the artifact is from a different repo
+        # Required, if the repo is private a Personal Access Token with `repo` scope is needed
+         github_token: ${{secrets.GITHUB_TOKEN}}
+         # Optional, workflow file name or ID
+         # If not specified, will be inferred from run_id (if run_id is specified), or will be the current workflow
+         workflow: composite-workflow.yml
+         name: timestamp
+      - name: Extract Last Run Time
+        if: ${{ false }}
+        run: |
+          lastRun=$(cat timestamp.txt)
+          echo "Last Run: $lastRun"
+          #ls -R          
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Build
+        #if: ${{ false }}
+        run: |  
+          echo "Building..."
+          pwd
+          ls -lah
+          echo "Workflow: ${{github.workflow}}"
+          echo "appVersion: $appVersion"
+          echo "newBuildNumber: ${newBuildNumber}"
+          ./scripts/deploy.sh -b "${newBuildNumber}" -v "$appVersion"
+      - name: Package
+        run: |          
+          echo "Packaging..."
+          currentRun=$(cat timestamp.txt)
+          echo "Current Run: $currentRun"  
+      # - name: Size Checks
+      #   if: ${{ inputs.run-workflow-size-check }}
+      #   run: |
+      #     echo "Executing size checks..."
+      #     echo "${{ vars.APP_SIZE_RESTRICTIONS }}"
+      #     find ~/bld/MemoryMatrixApp.xcarchive -name "*.car" -print0 | xargs -0 -I {} python3 ./scripts/check-asset-size.py --cpath {} ${{ vars.APP_SIZE_RESTRICTIONS }}
+      #     echo "Size checks completed."
+      - name: Upload
+        if: inputs.job-type == 'Deployment'
+        run: |          
+          echo "Uploading..."  
+          ./scripts/upload.sh -b "${newBuildNumber}" -v "$appVersion" -i "$ascIssuerId" -k "$ascKeyId"
+      - name: Upload Results
+        #if: ${{ false }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: results
+          path: results.txt
+      - name: Upload Time Stamp
+        if: ${{ false }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: timestamp
+          path: timestamp.txt          

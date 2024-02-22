@@ -1,0 +1,42 @@
+# This is a basic workflow that is manually triggered
+
+name: Errors n Warnings
+
+# Controls when the action will run. Workflow runs when manually triggered using the UI
+# or API.
+on:
+  workflow_dispatch:
+    inputs:
+      job-type:
+        type: choice
+        description: Job Type
+        options:
+        - "Deployment"
+        - "Build IPA"
+        - "Build Archive"
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  run-job:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    - name: Calculate New Build Number
+      if: inputs.job-type == 'Deployment' 
+      run: |
+        if [ "${{inputs.job-type}}" = "Deployment" ]; then
+           newBuildNumber=$(echo $((${{env.buildNumberBase}}+${{github.run_number}})))
+           echo "New Build Number: $newBuildNumber"
+           echo "newBuildNumber=$newBuildNumber" >> $GITHUB_ENV   
+        fi
+    - name: Send greeting
+      run: |
+        echo "Job Type: ${{inputs.job-type}}"
+        echo "::warning file=somefile.pdf::File is to large"
+        echo "::warning file=app.js,line=1,col=5,endColumn=7::Missing semicolon"
+        # ::error file={name},line={line},endLine={endLine},title={title}::{message}
+        echo "::error file=app.js,line=1,col=5,endColumn=7::Missing semicolon idiot"
+        echo "Hello ${{ inputs.name }}"
+        # exit 44

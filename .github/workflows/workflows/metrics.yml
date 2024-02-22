@@ -1,0 +1,31 @@
+# This is a basic workflow that is manually triggered
+
+name: Metrics
+
+# Controls when the action will run. Workflow runs when manually triggered using the UI
+# or API.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "36 23 * * *"  
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  metrics:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+     - name: Checkout
+       uses: actions/checkout@v2
+       with:
+          submodules: recursive
+     - name: Extract Metrics
+       run: |
+        ./scripts/workflow-metrics.sh
+     - name: Upload Metrics CSV
+       uses: actions/upload-artifact@v2
+       with:
+          name: run-times
+          path: run-times.csv
